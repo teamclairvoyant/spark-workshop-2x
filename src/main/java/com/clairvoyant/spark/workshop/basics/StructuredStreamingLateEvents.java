@@ -2,6 +2,7 @@ package com.clairvoyant.spark.workshop.basics;
 
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.sql.*;
+import org.apache.spark.sql.streaming.ProcessingTime;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import scala.Tuple2;
 import scala.Tuple3;
@@ -10,11 +11,12 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by vijaydatla on 01/06/17.
  */
-public class StructuredStreamingWaterMarking {
+public class StructuredStreamingLateEvents {
 
     public static void main(String[] args) {
 
@@ -54,13 +56,15 @@ public class StructuredStreamingWaterMarking {
                         },Encoders.tuple(Encoders.STRING(), Encoders.TIMESTAMP(), Encoders.TIMESTAMP()) ).toDF("word", "eventtime", "timestamp");
 
         // Generate running word count
-        Dataset<Row> wordCounts = words.groupBy(functions.window(words.col("timestamp"), "10 seconds", "5 seconds"),words.col("word")).count();
+        Dataset<Row> wordCounts = words
+                .groupBy(functions.window(words.col("eventtime"), "30 seconds", "15 seconds"),words.col("word")).count();
 
 
 
         // Start running the query that prints the running counts to the console
         StreamingQuery query = wordCounts.writeStream()
                 .outputMode("update")
+                .trigger(ProcessingTime.create(2, TimeUnit.SECONDS))
                 .format("console")
                 .option("truncate", "false")
                 .start();
